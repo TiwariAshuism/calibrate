@@ -40,6 +40,7 @@ class BlinkingLights:
 
     @staticmethod
     def create_dot(position):
+        print(position)
         dot = turtle.Turtle()
         dot.shape("circle")
         dot.shapesize(1, 1)
@@ -64,7 +65,7 @@ class BlinkingLights:
             self.worksheet.write(column, self.round-1, line)
             column += 1
 
-        self.worksheet.write(column,self.round-1,f"Mode\n = {statistics.mode(data_list)}")
+        #self.worksheet.write(column,self.round-1,f"Mode\n = {statistics.mode(data_list)}")
         data_list.clear()
         if self.blinking[index]:
             self.screen.ontimer(functools.partial(self.change_brightness_sequence, index), 100)
@@ -81,7 +82,7 @@ class BlinkingLights:
         self.screen.ontimer(functools.partial(self.change_brightness_sequence, next_index), 200)
 
     def start_blinking_lights(self):
-        self.dots = [self.create_dot((-500 + (i % 3) * 500, 300 - int(i / 3) * 300)) for i in range(9)]
+        self.dots = [self.create_dot((-800 + (i % 3) * 800, 500 - int(i / 3) * 500)) for i in range(9)]
         self.blinking = [False] * len(self.dots)
         self.screen.ontimer(functools.partial(self.change_brightness_sequence, 0), 50)
         self.screen.mainloop()
@@ -111,7 +112,7 @@ def start_webcam_interaction(data_list):
                 if id == 1:
                     screen_x = int(screen_w * landmark.x)
                     screen_y = int(screen_h * landmark.y)
-                    data_list.append(screen_x)
+                    data_list.append('x: '+str(screen_x)+' y: '+str(screen_y))
 
             left = [landmarks[145], landmarks[159]]
             for landmark in left:
