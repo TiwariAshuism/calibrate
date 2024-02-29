@@ -6,9 +6,13 @@ import functools
 import cv2
 import mediapipe as mp
 import pyautogui
+import xlsxwriter
+import statistics
+data = []
 
+cam = cv2.VideoCapture(0)
 class BlinkingLights:
-    def __init__(self):
+    def __init__(self, data_list):
         self.screen = turtle.Screen()
         self.screen.title('Blinking Lights')
         self.screenTk = self.screen.getcanvas().winfo_toplevel()
@@ -19,6 +23,20 @@ class BlinkingLights:
         self.hues = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
         self.dots = []
         self.blinking = []
+        self.data_list = data_list
+        self.workbook = xlsxwriter.Workbook("AllAboutdata.xlsx")
+        self.worksheet = self.workbook.add_worksheet("firstSheet")
+        self.worksheet.write(0, 0, "Point 1")
+        self.worksheet.write(0, 1, "Point 2")
+        self.worksheet.write(0, 2, "Point 3")
+        self.worksheet.write(0, 3, "Point 4")
+        self.worksheet.write(0, 4, "Point 5")
+        self.worksheet.write(0, 5, "Point 6")
+        self.worksheet.write(0, 6, "Point 7")
+        self.worksheet.write(0, 7, "Point 8")
+        self.worksheet.write(0, 8, "Point 9")
+        self.row = 0
+        self.col = 0
 
     @staticmethod
     def create_dot(position):
@@ -34,15 +52,27 @@ class BlinkingLights:
         if self.round > 9:
             time.sleep(3)
             self.screen.bye()
-            
+            self.workbook.close()
+            cam.release()
+            cv2.destroyAllWindows()
         self.brightness = 0.9 if self.brightness < 1.0 else 0.1
         rgb = colorsys.hsv_to_rgb(self.hues[index], 1, self.brightness)
         self.dots[index].color(rgb)
+        print(data_list)
+        column=1
+        for line in data_list:
+            self.worksheet.write(column, self.round-1, line)
+            column += 1
 
+        self.worksheet.write(column,self.round-1,f"Mode\n = {statistics.mode(data_list)}")
+        data_list.clear()
         if self.blinking[index]:
             self.screen.ontimer(functools.partial(self.change_brightness_sequence, index), 100)
+            self.data_list.append(self.dots[index].position())
+
+
         else:
-            self.screen.ontimer(functools.partial(self.hide_dot, index), 1000)
+            self.screen.ontimer(functools.partial(self.hide_dot, index), 5000)
 
     def hide_dot(self, index):
         self.dots[index].hideturtle()
@@ -51,17 +81,18 @@ class BlinkingLights:
         self.screen.ontimer(functools.partial(self.change_brightness_sequence, next_index), 200)
 
     def start_blinking_lights(self):
-        self.dots = [self.create_dot((-400 + (i % 3) * 400, 300 - int(i / 3) * 300)) for i in range(9)]
+        self.dots = [self.create_dot((-500 + (i % 3) * 500, 300 - int(i / 3) * 300)) for i in range(9)]
         self.blinking = [False] * len(self.dots)
         self.screen.ontimer(functools.partial(self.change_brightness_sequence, 0), 50)
         self.screen.mainloop()
 
-def start_turtle_graphics():
-    blinking_lights = BlinkingLights()
+
+def start_turtle_graphics(data_list):
+    blinking_lights = BlinkingLights(data_list)
     blinking_lights.start_blinking_lights()
 
-def start_webcam_interaction():
-    cam = cv2.VideoCapture(0)
+
+def start_webcam_interaction(data_list):
     face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
     screen_w, screen_h = pyautogui.size()
     while True:
@@ -80,7 +111,8 @@ def start_webcam_interaction():
                 if id == 1:
                     screen_x = int(screen_w * landmark.x)
                     screen_y = int(screen_h * landmark.y)
-                    print("Cursor Location:", screen_x, screen_y)  # Print cursor location
+                    data_list.append(screen_x)
+
             left = [landmarks[145], landmarks[159]]
             for landmark in left:
                 x = int(landmark.x * frame_w)
@@ -89,12 +121,15 @@ def start_webcam_interaction():
             if (left[0].y - left[1].y) < 0.004:
                 pyautogui.click()
                 pyautogui.sleep(1)
+
         cv2.imshow('Eye Controlled ', frame)
         cv2.waitKey(1)
 
+
 if __name__ == "__main__":
-    turtle_thread = threading.Thread(target=start_turtle_graphics)
-    webcam_thread = threading.Thread(target=start_webcam_interaction)
+    data_list = []
+    turtle_thread = threading.Thread(target=start_turtle_graphics, args=(data_list,))
+    webcam_thread = threading.Thread(target=start_webcam_interaction, args=(data_list,))
 
     turtle_thread.start()
     webcam_thread.start()
