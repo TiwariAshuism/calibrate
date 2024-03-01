@@ -193,7 +193,7 @@ def lsl_streaming():
     sheet.append(header)
     workbook.save("realtime_data.xlsx")
     # first resolve an EEG stream on the lab network
-    print("looking for an EEG stream...")
+    print("looking for an Event stream...")
     streams = resolve_stream('type', 'Event')
 
     # create a new inlet to read from the stream
@@ -207,13 +207,10 @@ def lsl_streaming():
 
         # Write data to the worksheet
         for col, data_point in enumerate(sample):
-            sheet.append([data_point + " TimeStamp: " + str(timeData)])
+            sheet.append([str(data_point) + " TimeStamp: " + str(timeData)])
         workbook.save("realtime_data.xlsx")
         # Sleep for a short time to avoid excessive CPU usage
         time.sleep(0.1)
-
-    # Close the workbook when done
-    workbook.close()
 
 
 if __name__ == "__main__":
