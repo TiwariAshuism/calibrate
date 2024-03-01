@@ -8,9 +8,11 @@ import cv2
 import mediapipe as mp
 import pyautogui
 import xlsxwriter
-import statistics
 import openpyxl
 from pylsl import StreamInlet, resolve_stream
+
+# Global flag to control the webcam interaction loop
+stop_webcam = False
 
 data = []  # List to store data points
 mode = []  # List to store modes (not used in the provided code)
@@ -100,12 +102,23 @@ class BlinkingLights:
         self.screen.ontimer(functools.partial(self.change_brightness_sequence, next_index), 200)
 
     def start_blinking_lights(self):
-        # Method to start the blinking lights sequence
+        instruction = turtle.Turtle()
+        instruction.hideturtle()
+        instruction.penup()
+        instruction.color("white")  # Set text color to white
+        instruction.goto(0, 0)
+        instruction.write("Please follow the color dot on the screen for calibration.", align="center", font=("Arial", 24, "normal"))
+        self.screen.update()  # Update the screen to display the instruction
+
+        # Schedule the removal of instruction text after 5 seconds
+        self.screen.ontimer(lambda: instruction.clear(), 5000)
+
         # Create light dots at specific positions
         self.dots = [self.create_dot((-800 + (i % 3) * 800, 500 - int(i / 3) * 500)) for i in range(9)]
         self.blinking = [False] * len(self.dots)
-        # Start the sequence by changing brightness of the first light
-        self.screen.ontimer(functools.partial(self.change_brightness_sequence, 0), 3000)
+
+        # Start the sequence by changing brightness of the first light after 5 seconds
+        self.screen.ontimer(functools.partial(self.change_brightness_sequence, 0), 5000)
         self.screen.mainloop()
 
 
@@ -117,6 +130,7 @@ def start_turtle_graphics(data_list):
 
 # Function to start webcam interaction for detecting facial landmarks
 def start_webcam_interaction(data_list=None):
+    global stop_webcam  # Access the global flag
     face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
     screen_w, screen_h = pyautogui.size()
     workbook = xlsxwriter.Workbook("Alldata.xlsx")
@@ -124,7 +138,7 @@ def start_webcam_interaction(data_list=None):
     worksheet.write(0, 0, "Point 1")
     row = 0
     col = 0
-    while True:
+    while not stop_webcam:  # Continue the loop until the stop flag is set
         ret, frame = cam.read()
         if not ret:
             print("Error: Unable to access the camera.")
@@ -148,9 +162,10 @@ def start_webcam_interaction(data_list=None):
                     timeData = current_time
                     if data_list is not None:
                         data_list.append('X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time:  " + str(current_time))
-                    if ( count > 9):
+                    if (count > 9):
                         worksheet.write(col, row,
-                                        'X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time: " + str(current_time))
+                                        'X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time: " + str(
+                                            current_time))
                         col += 1
             left = [landmarks[145], landmarks[159]]
             for landmark in left:
@@ -166,11 +181,15 @@ def start_webcam_interaction(data_list=None):
             workbook.close()
             break
 
+    # Release the camera when done
+    cam.release()
+    cv2.destroyAllWindows()
+
 
 def lsl_streaming():
     workbook = openpyxl.Workbook()
     sheet = workbook.active
-    header=["Timestamp","Data"]
+    header = ["Timestamp", "Data"]
     sheet.append(header)
     workbook.save("realtime_data.xlsx")
     # first resolve an EEG stream on the lab network
@@ -188,7 +207,7 @@ def lsl_streaming():
 
         # Write data to the worksheet
         for col, data_point in enumerate(sample):
-            sheet.append([data_point+" TimeStamp: "+str(timeData)])
+            sheet.append([data_point + " TimeStamp: " + str(timeData)])
         workbook.save("realtime_data.xlsx")
         # Sleep for a short time to avoid excessive CPU usage
         time.sleep(0.1)
@@ -209,5 +228,7 @@ if __name__ == "__main__":
     lsl_thread.start()
     # Wait for threads to finish
     turtle_thread.join()
+    # Set the flag to stop the webcam interaction loop
+    stop_webcam = True
     webcam_thread.join()
     lsl_thread.join()
