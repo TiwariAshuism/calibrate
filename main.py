@@ -9,13 +9,16 @@ import mediapipe as mp
 import pyautogui
 import xlsxwriter
 import statistics
+import openpyxl
+from pylsl import StreamInlet, resolve_stream
 
 data = []  # List to store data points
 mode = []  # List to store modes (not used in the provided code)
 count = 0  # Counter variable
-
+timeData = 0
 # Initialize camera
 cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+
 
 # Class for creating blinking lights using Turtle graphics
 class BlinkingLights:
@@ -105,10 +108,12 @@ class BlinkingLights:
         self.screen.ontimer(functools.partial(self.change_brightness_sequence, 0), 3000)
         self.screen.mainloop()
 
+
 # Function to start the Turtle graphics for blinking lights
 def start_turtle_graphics(data_list):
     blinking_lights = BlinkingLights(data_list)
     blinking_lights.start_blinking_lights()
+
 
 # Function to start webcam interaction for detecting facial landmarks
 def start_webcam_interaction(data_list=None):
@@ -139,11 +144,13 @@ def start_webcam_interaction(data_list=None):
                     screen_x = int(screen_w * landmark.x)
                     screen_y = int(screen_h * landmark.y)
                     current_time = datetime.datetime.now()
+                    global timeData
+                    timeData = current_time
                     if data_list is not None:
-                        data_list.append('X: ' + str(screen_x) + 'X: ' + str(screen_y) + " Time:  " + str(current_time) )
-                    if (count > 9):
+                        data_list.append('X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time:  " + str(current_time))
+                    if ( count > 9):
                         worksheet.write(col, row,
-                                        'X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time: " + str(current_time) )
+                                        'X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time: " + str(current_time))
                         col += 1
             left = [landmarks[145], landmarks[159]]
             for landmark in left:
@@ -159,14 +166,48 @@ def start_webcam_interaction(data_list=None):
             workbook.close()
             break
 
+
+def lsl_streaming():
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    header=["Timestamp","Data"]
+    sheet.append(header)
+    workbook.save("realtime_data.xlsx")
+    # first resolve an EEG stream on the lab network
+    print("looking for an EEG stream...")
+    streams = resolve_stream('type', 'Event')
+
+    # create a new inlet to read from the stream
+    inlet = StreamInlet(streams[0])
+
+    while True:
+        # get a new sample (you can also omit the timestamp part if you're not
+        # interested in it)
+        sample, timestamp = inlet.pull_sample()
+        print(timestamp, sample)
+
+        # Write data to the worksheet
+        for col, data_point in enumerate(sample):
+            sheet.append([data_point+" TimeStamp: "+str(timeData)])
+        workbook.save("realtime_data.xlsx")
+        # Sleep for a short time to avoid excessive CPU usage
+        time.sleep(0.1)
+
+    # Close the workbook when done
+    workbook.close()
+
+
 if __name__ == "__main__":
     data_list = []  # Shared list for storing data points
-    # Create threads for running Turtle graphics and webcam interaction concurrently
+    # Create threads for running Turtle graphics, webcam interaction, and LSL streaming concurrently
     turtle_thread = threading.Thread(target=start_turtle_graphics, args=(data_list,))
     webcam_thread = threading.Thread(target=start_webcam_interaction, args=(data_list,))
+    lsl_thread = threading.Thread(target=lsl_streaming, args=())
     # Start the threads
     turtle_thread.start()
     webcam_thread.start()
+    lsl_thread.start()
     # Wait for threads to finish
     turtle_thread.join()
     webcam_thread.join()
+    lsl_thread.join()
