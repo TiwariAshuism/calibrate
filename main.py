@@ -1,3 +1,4 @@
+import datetime
 import threading
 import time
 import turtle
@@ -8,39 +9,47 @@ import mediapipe as mp
 import pyautogui
 import xlsxwriter
 import statistics
-data = []
-mode = []
-count=0
-cam = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+
+data = []  # List to store data points
+mode = []  # List to store modes (not used in the provided code)
+count = 0  # Counter variable
+
+# Initialize camera
+cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+
+# Class for creating blinking lights using Turtle graphics
 class BlinkingLights:
     def __init__(self, data_list):
+        # Initialize Turtle graphics window
         self.screen = turtle.Screen()
         self.screen.title('Blinking Lights')
         self.screenTk = self.screen.getcanvas().winfo_toplevel()
         self.screenTk.attributes("-fullscreen", True)
         self.screen.bgcolor("black")
-        self.round = 0
-        self.brightness = 0.0
-        self.hues = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
-        self.dots = []
-        self.blinking = []
-        self.data_list = data_list
-        self.workbook = xlsxwriter.Workbook("AllAboutdata.xlsx")
-        self.worksheet = self.workbook.add_worksheet("firstSheet")
-        self.worksheet.write(0, 0, "Point 1")
-        self.worksheet.write(0, 1, "Point 2")
-        self.worksheet.write(0, 2, "Point 3")
-        self.worksheet.write(0, 3, "Point 4")
-        self.worksheet.write(0, 4, "Point 5")
-        self.worksheet.write(0, 5, "Point 6")
-        self.worksheet.write(0, 6, "Point 7")
-        self.worksheet.write(0, 7, "Point 8")
-        self.worksheet.write(0, 8, "Point 9")
-        self.row = 0
-        self.col = 0
+        self.round = 0  # Counter for rounds of blinking
+        self.brightness = 0.0  # Initial brightness of lights
+        self.hues = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6]  # List of hues for colors
+        self.dots = []  # List to store Turtle objects representing lights
+        self.blinking = []  # List to store blinking status of each light
+        self.data_list = data_list  # Reference to the shared data list
+        self.workbook = xlsxwriter.Workbook("AllAboutdata.xlsx")  # Workbook for storing data
+        self.worksheet = self.workbook.add_worksheet("firstSheet")  # Worksheet for storing data
+        # Write column headers in the worksheet
+        self.worksheet.write(0, 0, "Top Left (x,y,time stamp)")
+        self.worksheet.write(0, 1, "Top Center (x,y,time stamp)")
+        self.worksheet.write(0, 2, "Top Right (x,y,time stamp)")
+        self.worksheet.write(0, 3, "Center Left (x,y,time stamp)")
+        self.worksheet.write(0, 4, "Center (x,y,time stamp)")
+        self.worksheet.write(0, 5, "Center Right (x,y,time stamp)")
+        self.worksheet.write(0, 6, "Bottom Left (x,y,time stamp)")
+        self.worksheet.write(0, 7, "Bottom Center (x,y,time stamp)")
+        self.worksheet.write(0, 8, "Bottom Right (x,y,time stamp)")
+        self.row = 0  # Row index for writing data
+        self.col = 0  # Column index for writing data
 
     @staticmethod
     def create_dot(position):
+        # Create a Turtle object representing a light dot
         dot = turtle.Turtle()
         dot.shape("circle")
         dot.shapesize(1, 1)
@@ -49,48 +58,59 @@ class BlinkingLights:
         return dot
 
     def change_brightness_sequence(self, index):
+        # Method to change the brightness of lights in sequence
         self.round += 1
         global count
-        count=self.round
+        count = self.round
         if self.round > 9:
+            # If completed 9 rounds, close the Turtle graphics window and workbook
             time.sleep(3)
             self.screen.bye()
             self.workbook.close()
 
+        # Toggle brightness between 0.1 and 0.9
         self.brightness = 0.9 if self.brightness < 1.0 else 0.1
         rgb = colorsys.hsv_to_rgb(self.hues[index], 1, self.brightness)
         self.dots[index].color(rgb)
-        column=1
+
+        # Write data to the worksheet for each light
+        column = 1
         for line in self.data_list:
-            self.worksheet.write(column, self.round-1, line)
+            self.worksheet.write(column, self.round - 1, line)
             column += 1
 
+        # Clear the shared data list
         data_list.clear()
+
+        # Schedule the next change in brightness
         if self.blinking[index]:
             self.screen.ontimer(functools.partial(self.change_brightness_sequence, index), 100)
             self.data_list.append(self.dots[index].position())
-
         else:
-            self.screen.ontimer(functools.partial(self.hide_dot, index), 500)
+            self.screen.ontimer(functools.partial(self.hide_dot, index), 5000)
 
     def hide_dot(self, index):
+        # Method to hide a light dot and move to the next dot
         self.dots[index].hideturtle()
         next_index = (index + 1) % len(self.dots)
         self.dots[next_index] = self.create_dot(self.dots[next_index].position())
         self.screen.ontimer(functools.partial(self.change_brightness_sequence, next_index), 200)
 
     def start_blinking_lights(self):
+        # Method to start the blinking lights sequence
+        # Create light dots at specific positions
         self.dots = [self.create_dot((-800 + (i % 3) * 800, 500 - int(i / 3) * 500)) for i in range(9)]
         self.blinking = [False] * len(self.dots)
-        self.screen.ontimer(functools.partial(self.change_brightness_sequence, 0), 50)
+        # Start the sequence by changing brightness of the first light
+        self.screen.ontimer(functools.partial(self.change_brightness_sequence, 0), 3000)
         self.screen.mainloop()
 
-
+# Function to start the Turtle graphics for blinking lights
 def start_turtle_graphics(data_list):
     blinking_lights = BlinkingLights(data_list)
     blinking_lights.start_blinking_lights()
 
-
+# Function to start webcam interaction for detecting facial landmarks
 def start_webcam_interaction(data_list=None):
     face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
     screen_w, screen_h = pyautogui.size()
@@ -118,14 +138,13 @@ def start_webcam_interaction(data_list=None):
                 if id == 1:
                     screen_x = int(screen_w * landmark.x)
                     screen_y = int(screen_h * landmark.y)
-                    current_time= time.time()
-                    minute = int(current_time//60)%60
-                    seconds = int(current_time%60)
+                    current_time = datetime.datetime.now()
                     if data_list is not None:
-                        data_list.append('x: '+str(screen_x)+' y: '+str(screen_y)+"  "+str(minute)+":"+str(seconds) )
-                    if(count>9):
-                        worksheet.write(col, row, 'x: '+str(screen_x)+' y: '+str(screen_y)+"  "+str(minute)+":"+str(seconds))
-                        col+=1
+                        data_list.append('X: ' + str(screen_x) + 'X: ' + str(screen_y) + " Time:  " + str(current_time) )
+                    if (count > 9):
+                        worksheet.write(col, row,
+                                        'X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time: " + str(current_time) )
+                        col += 1
             left = [landmarks[145], landmarks[159]]
             for landmark in left:
                 x = int(landmark.x * frame_w)
@@ -140,15 +159,14 @@ def start_webcam_interaction(data_list=None):
             workbook.close()
             break
 
-
 if __name__ == "__main__":
-    data_list = []
+    data_list = []  # Shared list for storing data points
+    # Create threads for running Turtle graphics and webcam interaction concurrently
     turtle_thread = threading.Thread(target=start_turtle_graphics, args=(data_list,))
     webcam_thread = threading.Thread(target=start_webcam_interaction, args=(data_list,))
-    webcam_thread1=threading.Thread(target=start_webcam_interaction)
-
+    # Start the threads
     turtle_thread.start()
     webcam_thread.start()
-
+    # Wait for threads to finish
     turtle_thread.join()
     webcam_thread.join()
