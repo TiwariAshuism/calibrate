@@ -22,7 +22,7 @@ count = 0  # Counter variable
 timeData = 0
 # Initialize camera
 cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-dot_positions = []
+dot_positions = [int] * 9
 
 # Class for creating blinking lights using Turtle graphics
 class BlinkingLights:
@@ -85,7 +85,7 @@ class BlinkingLights:
         y_mode = statistics.mode([y[1] for y in statsData])
         modeData.append([x_mode ,y_mode])
         dot_position = list(self.dots[index].position())
-        dot_positions.append(dot_position)
+        #dot_positions.append(dot_position)
         statsData.clear()
         # Write data to the worksheet for each light
         column = 1
@@ -161,6 +161,17 @@ def start_webcam_interaction(data_list=None , statsData=None):
     worksheet.write(0, 0, "Point 1")
     row = 0
     col = 0
+    dot_positions[0]=[(screen_h/3)-40,(screen_w/3)-80]
+    dot_positions[1]=[(screen_h/3)-40,(screen_w/3)*2-80]
+    dot_positions[2]=[(screen_h/3)-40,(screen_w/3)*3-80]
+    dot_positions[3]=[(screen_h/3)*2-40,(screen_w/3)-80]
+    dot_positions[4]=[(screen_h/3)*2-40,(screen_w/3)*2-80]
+    dot_positions[5]=[(screen_h/3)*2-40,(screen_w/3)*3-80]
+    dot_positions[6]=[(screen_h/3)-40,(screen_w/3)-80]
+    dot_positions[7]=[(screen_h/3)-40,(screen_w/3)*2-80]
+    dot_positions[8]=[(screen_h/3)-40,(screen_w/3)*3-80]
+
+    print(dot_positions)
     while not stop_webcam:  # Continue the loop until the stop flag is set
         ret, frame = cam.read()
         if not ret:
@@ -194,8 +205,8 @@ def start_webcam_interaction(data_list=None , statsData=None):
                         closest_coord = closest_coordinate(point,modeData)
                         closestCordIndex = modeData.index(closest_coord)
                         dotPositionData = dot_positions[closestCordIndex]
-                        print(dotPositionData)
-                        cv2.circle(fr_sc, (dotPositionData[0], dotPositionData[1]), 50, (0, 255, 255))
+
+                        cv2.circle(fr_sc, (int(dotPositionData[0]), int(dotPositionData[1])), 50, (0, 255, 255))
                         rgb_sc = cv2.cvtColor(fr_sc, cv2.COLOR_BGR2RGB)
                         out_sc.write(rgb_sc)
                         worksheet.write(col, row,
