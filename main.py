@@ -1,8 +1,10 @@
 import datetime
+import math
 import threading
 import time
 import turtle
 import colorsys
+import numpy as np
 import functools
 import cv2
 import mediapipe as mp
@@ -10,12 +12,12 @@ import pyautogui
 import xlsxwriter
 import openpyxl
 from pylsl import StreamInlet, resolve_stream
-
+import statistics
 # Global flag to control the webcam interaction loop
 stop_webcam = False
 
 data = []  # List to store data points
-mode = []  # List to store modes (not used in the provided code)
+modeData = []  # List to store modes (not used in the provided code)
 count = 0  # Counter variable
 timeData = 0
 # Initialize camera
@@ -24,7 +26,7 @@ cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
 # Class for creating blinking lights using Turtle graphics
 class BlinkingLights:
-    def __init__(self, data_list):
+    def __init__(self, data_list , statsData):
         # Initialize Turtle graphics window
         self.screen = turtle.Screen()
         self.screen.title('Blinking Lights')
@@ -37,7 +39,8 @@ class BlinkingLights:
         self.dots = []  # List to store Turtle objects representing lights
         self.blinking = []  # List to store blinking status of each light
         self.data_list = data_list  # Reference to the shared data list
-        self.workbook = xlsxwriter.Workbook("AllAboutdata.xlsx")  # Workbook for storing data
+        self.statsData=statsData
+        self.workbook = xlsxwriter.Workbook("CalibrationData.xlsx")  # Workbook for storing data
         self.worksheet = self.workbook.add_worksheet("firstSheet")  # Worksheet for storing data
         # Write column headers in the worksheet
         self.worksheet.write(0, 0, "Top Left (x,y,time stamp)")
@@ -78,12 +81,16 @@ class BlinkingLights:
         rgb = colorsys.hsv_to_rgb(self.hues[index], 1, self.brightness)
         self.dots[index].color(rgb)
 
+        x_mode = statistics.mode( [x[0] for x in statsData])
+        y_mode = statistics.mode([y[1] for y in statsData])
+        modeData.append([x_mode ,y_mode])
+        print(modeData)
+        statsData.clear()
         # Write data to the worksheet for each light
         column = 1
         for line in self.data_list:
             self.worksheet.write(column, self.round - 1, line)
             column += 1
-
         # Clear the shared data list
         data_list.clear()
 
@@ -92,7 +99,7 @@ class BlinkingLights:
             self.screen.ontimer(functools.partial(self.change_brightness_sequence, index), 100)
             self.data_list.append(self.dots[index].position())
         else:
-            self.screen.ontimer(functools.partial(self.hide_dot, index), 5000)
+            self.screen.ontimer(functools.partial(self.hide_dot, index), 1000)
 
     def hide_dot(self, index):
         # Method to hide a light dot and move to the next dot
@@ -123,17 +130,32 @@ class BlinkingLights:
 
 
 # Function to start the Turtle graphics for blinking lights
-def start_turtle_graphics(data_list):
-    blinking_lights = BlinkingLights(data_list)
+def start_turtle_graphics(data_list , statsData):
+    blinking_lights = BlinkingLights(data_list,statsData)
     blinking_lights.start_blinking_lights()
 
+def distance(point1, point2):
+    return math.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2)
+
+def closest_coordinate(point, coordinates):
+    min_distance = float('inf')
+    closest_coord = None
+    for coord in coordinates:
+        dist = distance(point, coord)
+        if dist < min_distance:
+            min_distance = dist
+            closest_coord = coord
+    return closest_coord
 
 # Function to start webcam interaction for detecting facial landmarks
-def start_webcam_interaction(data_list=None):
+def start_webcam_interaction(data_list=None , statsData=None):
     global stop_webcam  # Access the global flag
     face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
     screen_w, screen_h = pyautogui.size()
-    workbook = xlsxwriter.Workbook("Alldata.xlsx")
+    dim = (screen_w, screen_h)
+    f_sc = cv2.VideoWriter_fourcc(*'XVID')
+    out_sc = cv2.VideoWriter('screen_recording.mp4',f_sc,60.0,dim)
+    workbook = xlsxwriter.Workbook("AfterCalibration.xlsx")
     worksheet = workbook.add_worksheet("firstSheet")
     worksheet.write(0, 0, "Point 1")
     row = 0
@@ -162,16 +184,26 @@ def start_webcam_interaction(data_list=None):
                     timeData = current_time
                     if data_list is not None:
                         data_list.append('X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time:  " + str(current_time))
-                    if (count > 9):
+                        statsData.append([screen_x,screen_y])
+                    if count > 9:
+                        im_sc = pyautogui.screenshot()
+                        fr_sc = np.array(im_sc)
+                        cv2.circle(fr_sc, (screen_x, screen_y), 50, (0, 255, 255))
+                        rgb_sc = cv2.cvtColor(fr_sc, cv2.COLOR_BGR2RGB)
+                        out_sc.write(rgb_sc)
                         worksheet.write(col, row,
                                         'X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time: " + str(
                                             current_time))
                         col += 1
+                        point = [screen_x,screen_y]
+
+                        closest_coord = closest_coordinate(point,modeData)
+                        print(closest_coord)
             left = [landmarks[145], landmarks[159]]
             for landmark in left:
                 x = int(landmark.x * frame_w)
                 y = int(landmark.y * frame_h)
-                cv2.circle(frame, (x, y), 3, (0, 255, 255))
+                cv2.circle(frame, (x, y), 3, (0, 255, 0))
             if (left[0].y - left[1].y) < 0.004:
                 pyautogui.click()
                 pyautogui.sleep(1)
@@ -182,6 +214,7 @@ def start_webcam_interaction(data_list=None):
             break
 
     # Release the camera when done
+    out_sc.release()
     cam.release()
     cv2.destroyAllWindows()
 
@@ -191,7 +224,7 @@ def lsl_streaming():
     sheet = workbook.active
     header = ["Timestamp", "Data"]
     sheet.append(header)
-    workbook.save("realtime_data.xlsx")
+    workbook.save("LSL_Data.xlsx")
     # first resolve an EEG stream on the lab network
     print("looking for an Event stream...")
     streams = resolve_stream('type', 'Event')
@@ -203,21 +236,22 @@ def lsl_streaming():
         # get a new sample (you can also omit the timestamp part if you're not
         # interested in it)
         sample, timestamp = inlet.pull_sample()
-        print(timestamp, sample)
+        #print(timestamp, sample)
 
         # Write data to the worksheet
         for col, data_point in enumerate(sample):
             sheet.append([str(data_point) + " TimeStamp: " + str(timeData)])
-        workbook.save("realtime_data.xlsx")
+        workbook.save("LSL_Data.xlsx")
         # Sleep for a short time to avoid excessive CPU usage
         time.sleep(0.1)
 
 
 if __name__ == "__main__":
     data_list = []  # Shared list for storing data points
+    statsData = []
     # Create threads for running Turtle graphics, webcam interaction, and LSL streaming concurrently
-    turtle_thread = threading.Thread(target=start_turtle_graphics, args=(data_list,))
-    webcam_thread = threading.Thread(target=start_webcam_interaction, args=(data_list,))
+    turtle_thread = threading.Thread(target=start_turtle_graphics, args=(data_list, statsData))
+    webcam_thread = threading.Thread(target=start_webcam_interaction, args=(data_list , statsData))
     lsl_thread = threading.Thread(target=lsl_streaming, args=())
     # Start the threads
     turtle_thread.start()
@@ -226,6 +260,6 @@ if __name__ == "__main__":
     # Wait for threads to finish
     turtle_thread.join()
     # Set the flag to stop the webcam interaction loop
-    stop_webcam = True
+    #stop_webcam = True
     webcam_thread.join()
     lsl_thread.join()
