@@ -22,7 +22,7 @@ count = 0  # Counter variable
 timeData = 0
 # Initialize camera
 cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-
+dot_positions = []
 
 # Class for creating blinking lights using Turtle graphics
 class BlinkingLights:
@@ -84,7 +84,8 @@ class BlinkingLights:
         x_mode = statistics.mode( [x[0] for x in statsData])
         y_mode = statistics.mode([y[1] for y in statsData])
         modeData.append([x_mode ,y_mode])
-        print(modeData)
+        dot_position = list(self.dots[index].position())
+        dot_positions.append(dot_position)
         statsData.clear()
         # Write data to the worksheet for each light
         column = 1
@@ -188,17 +189,19 @@ def start_webcam_interaction(data_list=None , statsData=None):
                     if count > 9:
                         im_sc = pyautogui.screenshot()
                         fr_sc = np.array(im_sc)
-                        cv2.circle(fr_sc, (screen_x, screen_y), 50, (0, 255, 255))
+                        point = [screen_x,screen_y]
+
+                        closest_coord = closest_coordinate(point,modeData)
+                        closestCordIndex = modeData.index(closest_coord)
+                        dotPositionData = dot_positions[closestCordIndex]
+                        print(dotPositionData)
+                        cv2.circle(fr_sc, (dotPositionData[0], dotPositionData[1]), 50, (0, 255, 255))
                         rgb_sc = cv2.cvtColor(fr_sc, cv2.COLOR_BGR2RGB)
                         out_sc.write(rgb_sc)
                         worksheet.write(col, row,
                                         'X: ' + str(screen_x) + ' Y: ' + str(screen_y) + " Time: " + str(
                                             current_time))
                         col += 1
-                        point = [screen_x,screen_y]
-
-                        closest_coord = closest_coordinate(point,modeData)
-                        print(closest_coord)
             left = [landmarks[145], landmarks[159]]
             for landmark in left:
                 x = int(landmark.x * frame_w)
