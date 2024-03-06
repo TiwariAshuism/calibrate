@@ -11,6 +11,7 @@ import pyautogui
 import xlsxwriter
 from openpyxl.workbook import Workbook
 from pylsl import StreamInlet, resolve_stream
+
 cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 data = []
 modeData = []
@@ -24,7 +25,28 @@ def draw_dot(frame, center, radius, color):
     cv2.circle(frame, center, radius, color, thickness=-1)
 
 
+def instruction():
+    screen_resolution = pyautogui.size()
+    fra = np.zeros((screen_resolution[1], screen_resolution[0], 3), dtype=np.uint8)
+    fra = cv2.putText(fra, 'Please follow the nine green dots on the screen.',
+                      ((screen_resolution[0] // 2)-200 , screen_resolution[1] // 2), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                      (0, 255, 0), 2)
+
+    cv2.namedWindow("Instructions", cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty("Instructions", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.imshow("Instructions", fra)
+    start_time = time.time()
+    while time.time() - start_time < 5:
+        if cv2.waitKey(10) & 0xFF == ord('q'):
+            break
+    cv2.destroyWindow("Instructions")
+
+
+start_time = time.time()
+
+
 def main(data_list):
+    current_time = datetime.datetime.now()
     screen_resolution = (1920, 1080)
     dot_radius = 10
     dot_color = (0, 255, 0)
@@ -47,7 +69,7 @@ def main(data_list):
     ws = wb.active
     global modeData
     cv2.namedWindow("Blinking Dots", cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty("Blinking Dots", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.setWindowProperty("Blinking Dots", cv2.WND_PROP_TOPMOST, 1)
 
     global blinking_index
 
@@ -66,18 +88,21 @@ def main(data_list):
         # Clear the data_list after processing
         x_mode = statistics.mode([x[0] for x in data_list])
         y_mode = statistics.mode([y[1] for y in data_list])
-        ws.cell(row= 1, column=blinking_index).value = f"X Mode: {x_mode}, Y Mode: {y_mode}"
+        ws.cell(row=1, column=blinking_index).value = f"X Mode: {x_mode}, Y Mode: {y_mode}"
         for i, row in enumerate(data_list):
-            ws.cell(row=i + 2, column=blinking_index).value = f" X: {row[0]}, Y: {row[1]}"  # Write X data
+            ws.cell(row=i + 2,
+                    column=blinking_index).value = f" X: {row[0]}, Y: {row[1]} , Timestamp: {current_time}"  # Write X data
         wb.save('dot_positions.xlsx')
-        modeData.append([x_mode,y_mode])
+        modeData.append([x_mode, y_mode])
         print(data_list)
         del data_list[initial_length:]
 
     cv2.destroyWindow("Blinking Dots")
 
+
 def distance(point1, point2):
-    return math.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2)
+    return math.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
+
 
 def closest_coordinate(point, coordinates):
     min_distance = float('inf')
@@ -89,9 +114,10 @@ def closest_coordinate(point, coordinates):
             closest_coord = coord
     return closest_coord
 
+
 def start_webcam_interaction(data_list=None):
     global dot_location
-    global  blinking_index
+    global blinking_index
 
     face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
     screen_w, screen_h = pyautogui.size()
@@ -127,10 +153,9 @@ def start_webcam_interaction(data_list=None):
                     timeData = current_time
                     point = [screen_x, screen_y]
 
-                    if data_list is not None and blinking_index<9:
+                    if data_list is not None and blinking_index < 9:
                         data_list.append(point)
-                    if blinking_index>=9:
-
+                    if blinking_index >= 9:
                         im_sc = pyautogui.screenshot()
                         fr_sc = np.array(im_sc)
                         closest_coord = closest_coordinate(point, modeData)
@@ -160,6 +185,7 @@ def start_webcam_interaction(data_list=None):
     cam.release()
     cv2.destroyAllWindows()
 
+
 def lsl_streaming():
     workbook = openpyxl.Workbook()
     sheet = workbook.active
@@ -177,10 +203,14 @@ def lsl_streaming():
         workbook.save("LSL_Data.xlsx")
         time.sleep(0.1)
 
+
 if __name__ == "__main__":
     data_list = []  # Shared list for storing data points
     statsData = []
-
+    instructionThread = threading.Thread(target=instruction, args=())
+    instructionThread.start()
+    instructionThread.join()
+    time.sleep(5)
     # Create threads for running main, webcam interaction, and LSL streaming concurrently
     main_thread = threading.Thread(target=main, args=(data_list,))
     webcam_thread = threading.Thread(target=start_webcam_interaction, args=(data_list,))
