@@ -25,24 +25,6 @@ def draw_dot(frame, center, radius, color):
     cv2.circle(frame, center, radius, color, thickness=-1)
 
 
-def instruction():
-    screen_resolution = pyautogui.size()
-    fra = np.zeros((screen_resolution[1], screen_resolution[0], 3), dtype=np.uint8)
-    fra = cv2.putText(fra, 'Please follow the nine green dots on the screen.',
-                      ((screen_resolution[0] // 2)-200 , screen_resolution[1] // 2), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                      (0, 255, 0), 2)
-
-    cv2.namedWindow("Instructions", cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty("Instructions", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-    cv2.imshow("Instructions", fra)
-    start_time = time.time()
-    while time.time() - start_time < 5:
-        if cv2.waitKey(10) & 0xFF == ord('q'):
-            break
-    cv2.destroyWindow("Instructions")
-
-
-start_time = time.time()
 
 
 def main(data_list):
@@ -153,9 +135,9 @@ def start_webcam_interaction(data_list=None):
                     timeData = current_time
                     point = [screen_x, screen_y]
 
-                    if data_list is not None and blinking_index < 9:
+                    if data_list is not None and blinking_index <= 9:
                         data_list.append(point)
-                    if blinking_index >= 9:
+                    if blinking_index > 9:
                         im_sc = pyautogui.screenshot()
                         fr_sc = np.array(im_sc)
                         closest_coord = closest_coordinate(point, modeData)
@@ -207,10 +189,7 @@ def lsl_streaming():
 if __name__ == "__main__":
     data_list = []  # Shared list for storing data points
     statsData = []
-    instructionThread = threading.Thread(target=instruction, args=())
-    instructionThread.start()
-    instructionThread.join()
-    time.sleep(5)
+
     # Create threads for running main, webcam interaction, and LSL streaming concurrently
     main_thread = threading.Thread(target=main, args=(data_list,))
     webcam_thread = threading.Thread(target=start_webcam_interaction, args=(data_list,))
